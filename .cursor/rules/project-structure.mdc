@@ -1,0 +1,38 @@
+---
+alwaysApply: true
+description: 项目结构和核心文件说明
+---
+
+# 识典古籍获取工具 - 项目结构
+
+## 核心文件说明
+
+- [fetch_book.py](mdc:fetch_book.py) - 主获取脚本，包含 `ShidiangujiFetcher` 类
+- [utils.py](mdc:utils.py) - 工具函数集合，提供辅助功能
+- [example.py](mdc:example.py) - 使用示例和演示脚本
+- [requirements.txt](mdc:requirements.txt) - Python依赖包列表
+- [README.md](mdc:README.md) - 项目文档和使用说明
+
+## 项目特点
+
+这是一个用于从识典古籍网站批量获取古籍文本的Python工具，具有以下特点：
+
+- **智能分析**: 自动分析网站结构，发现所有章节
+- **批量获取**: 一次性获取整本书的所有章节
+- **内容清理**: 自动去除重复内容和无关信息
+- **格式优化**: 生成规范的markdown格式
+- **错误处理**: 完整的错误处理和重试机制
+- **配置灵活**: 支持环境变量配置
+
+## 输出目录
+
+- `books/` - 存储获取的古籍文件
+- `output/` - 默认输出目录（可配置）
+
+## 技术栈
+
+- Python 3.x
+- requests - HTTP请求处理
+- BeautifulSoup4 - HTML解析
+- python-dotenv - 环境变量管理
+- lxml - XML/HTML解析器

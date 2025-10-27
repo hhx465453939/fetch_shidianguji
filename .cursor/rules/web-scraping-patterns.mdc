@@ -1,0 +1,87 @@
+---
+globs: *.py
+description: 网页抓取模式和最佳实践
+---
+
+# 网页抓取模式和最佳实践
+
+## 识典古籍网站结构
+
+### URL模式
+- 书籍主页：`https://www.shidianguji.com/book/{BOOK_ID}`
+- 章节页面：`https://www.shidianguji.com/book/{BOOK_ID}/chapter/{CHAPTER_ID}`
+- API接口：`https://www.shidianguji.com/api/book/{BOOK_ID}/chapters`
+
+### 内容选择器
+优先使用以下选择器查找内容：
+```python
+content_selectors = [
+    'article',                    # 主要内容区域
+    '.chapter-reader-content',    # 章节阅读器内容
+    '.content',                   # 通用内容区域
+    '.main-content',              # 主要内容
+    '.text-content',              # 文本内容
+    '#content',                   # ID为content的元素
+    '[class*="content"]',         # 包含content的class
+    '[class*="text"]',            # 包含text的class
+    '[class*="chapter"]'          # 包含chapter的class
+]
+```
+
+### 章节发现策略
+1. **主页面分析**：从书籍主页获取所有章节链接
+2. **API接口**：尝试使用API获取章节列表
+3. **目录页面**：访问专门的目录页面
+4. **嵌套发现**：从样本章节中发现二级结构
+
+### 内容清理模式
+```python
+# 移除无关元素
+for script in soup(["script", "style"]):
+    script.decompose()
+
+# 移除导航和侧边栏
+for unwanted in soup.find_all(['nav', 'header', 'footer', 'aside', '.nav', '.menu', '.sidebar']):
+    unwanted.decompose()
+
+# 清理文本内容
+content = re.sub(r'识典古籍.*?版权所有', '', content, flags=re.DOTALL)
+content = re.sub(r'登录后阅读更方便', '', content)
+content = re.sub(r'书库', '', content)
+```
+
+## 请求处理
+
+### 会话管理
+```python
+self.session = requests.Session()
+self.session.headers.update({
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+})
+```
+
+### 错误处理
+- 使用 `response.raise_for_status()` 检查HTTP状态
+- 实现指数退避重试机制
+- 记录详细的错误信息
+- 提供降级方案
+
+### 频率控制
+- 默认请求间隔1秒（可配置）
+- 实现智能延迟调整
+- 监控响应时间
+- 避免触发反爬虫机制
+
+## 数据存储
+
+### Markdown格式
+- 使用标准Markdown语法
+- 包含元数据（来源、时间、方式）
+- 生成目录结构
+- 保持内容层次清晰
+
+### 文件命名
+- 使用时间戳避免冲突
+- 清理不合法的文件名字符
+- 限制文件名长度
+- 使用UTF-8编码

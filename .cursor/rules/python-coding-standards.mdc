@@ -1,0 +1,77 @@
+---
+globs: *.py
+description: Python代码规范和最佳实践
+---
+
+# Python 代码规范
+
+## 编码规范
+
+### 文件头部
+所有Python文件必须包含以下头部：
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+文件描述
+"""
+```
+
+### 导入顺序
+1. 标准库导入
+2. 第三方库导入
+3. 本地模块导入
+
+### 命名规范
+- 类名：使用 PascalCase（如 `ShidiangujiFetcher`）
+- 函数名：使用 snake_case（如 `extract_book_id_from_url`）
+- 变量名：使用 snake_case（如 `book_id`）
+- 常量：使用 UPPER_CASE（如 `BASE_URL`）
+
+### 函数文档
+每个函数必须包含docstring：
+```python
+def function_name(param1, param2):
+    """
+    函数描述
+    
+    Args:
+        param1 (type): 参数1描述
+        param2 (type): 参数2描述
+    
+    Returns:
+        type: 返回值描述
+    """
+```
+
+### 错误处理
+- 使用具体的异常类型
+- 提供有意义的错误信息
+- 记录错误日志
+- 实现重试机制
+
+### 代码组织
+- 类方法按功能分组
+- 相关功能放在一起
+- 使用空行分隔逻辑块
+- 避免过长的函数（建议不超过50行）
+
+## 项目特定规范
+
+### 网络请求
+- 使用 `requests.Session()` 复用连接
+- 设置合理的 User-Agent
+- 实现请求延迟避免频率限制
+- 添加超时和重试机制
+
+### 内容处理
+- 使用 BeautifulSoup 解析HTML
+- 实现内容清理和格式化
+- 处理编码问题（UTF-8）
+- 移除无关元素和重复内容
+
+### 文件操作
+- 使用 `os.makedirs(exist_ok=True)` 创建目录
+- 使用 `with open()` 安全处理文件
+- 指定正确的编码格式
+- 实现文件大小和格式验证

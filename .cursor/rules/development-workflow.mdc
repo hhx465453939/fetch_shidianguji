@@ -1,0 +1,356 @@
+---
+alwaysApply: true
+description: 开发工作流和项目维护指南
+---
+
+# 开发工作流和项目维护
+
+## 项目开发流程
+
+### 1. 功能开发流程
+```mermaid
+graph TD
+    A[需求分析] --> B[设计架构]
+    B --> C[编写代码]
+    C --> D[单元测试]
+    D --> E[集成测试]
+    E --> F[代码审查]
+    F --> G[文档更新]
+    G --> H[部署发布]
+```
+
+### 2. 代码提交规范
+```bash
+# 提交信息格式
+git commit -m "类型(范围): 简短描述
+
+详细描述（可选）
+
+- 修复了什么问题
+- 添加了什么功能
+- 改进了什么性能
+
+Closes #123"
+```
+
+#### 提交类型
+- `feat`: 新功能
+- `fix`: 修复bug
+- `docs`: 文档更新
+- `style`: 代码格式调整
+- `refactor`: 代码重构
+- `test`: 测试相关
+- `chore`: 构建过程或辅助工具的变动
+
+## 代码质量保证
+
+### 1. 代码审查清单
+- [ ] 代码符合项目规范
+- [ ] 函数有完整的文档字符串
+- [ ] 错误处理完整
+- [ ] 单元测试覆盖
+- [ ] 性能考虑
+- [ ] 安全性检查
+- [ ] 可维护性
+
+### 2. 性能优化指南
+```python
+# 使用连接池
+session = requests.Session()
+
+# 批量处理
+def process_chapters_batch(chapters, batch_size=10):
+    for i in range(0, len(chapters), batch_size):
+        batch = chapters[i:i + batch_size]
+        process_batch(batch)
+
+# 内存管理
+def process_large_content(content):
+    # 使用生成器处理大文件
+    for chunk in read_content_chunks(content):
+        yield process_chunk(chunk)
+```
+
+### 3. 错误处理最佳实践
+```python
+class AncientTextError(Exception):
+    """古籍文本处理异常"""
+    pass
+
+class NetworkError(Exception):
+    """网络请求异常"""
+    pass
+
+def robust_fetch(self, url, max_retries=3):
+    """健壮的获取方法"""
+    for attempt in range(max_retries):
+        try:
+            response = self.session.get(url, timeout=30)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            if attempt == max_retries - 1:
+                raise NetworkError(f"获取失败: {e}")
+            time.sleep(2 ** attempt)  # 指数退避
+```
+
+## 项目维护
+
+### 1. 依赖管理
+```bash
+# 更新依赖
+pip install --upgrade -r requirements.txt
+
+# 检查安全漏洞
+pip install safety
+safety check
+
+# 生成依赖报告
+pip freeze > requirements.txt
+```
+
+### 2. 版本管理
+```python
+# version.py
+__version__ = "1.0.0"
+__author__ = "pp"
+__email__ = "your.email@example.com"
+__description__ = "识典古籍获取工具"
+
+def get_version():
+    return __version__
+
+def get_version_info():
+    return {
+        'version': __version__,
+        'author': __author__,
+        'email': __email__,
+        'description': __description__
+    }
+```
+
+### 3. 日志管理
+```python
+import logging
+from datetime import datetime
+
+def setup_logging(log_level=logging.INFO):
+    """设置日志配置"""
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(f'logs/fetch_{datetime.now().strftime("%Y%m%d")}.log'),
+            logging.StreamHandler()
+        ]
+    )
+    
+    return logging.getLogger(__name__)
+```
+
+## 部署和发布
+
+### 1. 环境配置
+```bash
+# 开发环境
+export ENV=development
+export DEBUG=True
+export LOG_LEVEL=DEBUG
+
+# 生产环境
+export ENV=production
+export DEBUG=False
+export LOG_LEVEL=INFO
+```
+
+### 2. 构建脚本
+```python
+# build.py
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+def build_project():
+    """构建项目"""
+    print("开始构建项目...")
+    
+    # 清理旧文件
+    clean_directories = ['build', 'dist', '*.egg-info']
+    for pattern in clean_directories:
+        for path in Path('.').glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path)
+    
+    # 运行测试
+    print("运行测试...")
+    result = subprocess.run(['pytest', 'tests/'], capture_output=True, text=True)
+    if result.returncode != 0:
+        print("测试失败，构建中止")
+        return False
+    
+    # 构建包
+    print("构建包...")
+    subprocess.run(['python', 'setup.py', 'sdist', 'bdist_wheel'])
+    
+    print("构建完成！")
+    return True
+
+if __name__ == "__main__":
+    build_project()
+```
+
+### 3. 发布流程
+```bash
+# 1. 更新版本号
+# 2. 更新CHANGELOG.md
+# 3. 提交更改
+git add .
+git commit -m "chore: bump version to 1.0.1"
+git tag v1.0.1
+
+# 4. 推送到远程
+git push origin main
+git push origin v1.0.1
+
+# 5. 构建和发布
+python build.py
+twine upload dist/*
+```
+
+## 监控和维护
+
+### 1. 健康检查
+```python
+def health_check():
+    """系统健康检查"""
+    checks = {
+        'network': check_network_connectivity(),
+        'disk_space': check_disk_space(),
+        'memory': check_memory_usage(),
+        'dependencies': check_dependencies()
+    }
+    
+    all_healthy = all(checks.values())
+    
+    if not all_healthy:
+        logger.warning("健康检查发现问题", extra=checks)
+    
+    return all_healthy, checks
+```
+
+### 2. 性能监控
+```python
+import time
+from functools import wraps
+
+def monitor_performance(func):
+    """性能监控装饰器"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        
+        execution_time = end_time - start_time
+        logger.info(f"{func.__name__} 执行时间: {execution_time:.2f}秒")
+        
+        return result
+    return wrapper
+```
+
+### 3. 数据备份
+```python
+def backup_data():
+    """备份重要数据"""
+    backup_dir = f"backups/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    # 备份配置文件
+    shutil.copy('.env', backup_dir)
+    
+    # 备份输出文件
+    if os.path.exists('output'):
+        shutil.copytree('output', f"{backup_dir}/output")
+    
+    # 备份日志文件
+    if os.path.exists('logs'):
+        shutil.copytree('logs', f"{backup_dir}/logs")
+    
+    print(f"数据已备份到: {backup_dir}")
+```
+
+## 文档维护
+
+### 1. API文档
+```python
+def generate_api_docs():
+    """生成API文档"""
+    # 使用sphinx或其他工具生成文档
+    pass
+```
+
+### 2. 用户手册
+- 保持README.md更新
+- 提供使用示例
+- 记录常见问题
+- 维护变更日志
+
+### 3. 开发者文档
+- 代码注释完整
+- 架构设计文档
+- 部署指南
+- 贡献指南
+
+## 安全考虑
+
+### 1. 输入验证
+```python
+def validate_input(url, title):
+    """验证用户输入"""
+    if not url or not isinstance(url, str):
+        raise ValueError("URL不能为空且必须是字符串")
+    
+    if not validate_url(url):
+        raise ValueError("URL格式不正确")
+    
+    if title and len(title) > 200:
+        raise ValueError("标题长度不能超过200字符")
+```
+
+### 2. 敏感信息保护
+```python
+# 不要在代码中硬编码敏感信息
+# 使用环境变量
+api_key = os.getenv('API_KEY')
+if not api_key:
+    raise ValueError("API_KEY环境变量未设置")
+```
+
+### 3. 访问控制
+```python
+def check_permissions(user_id, resource):
+    """检查用户权限"""
+    # 实现权限检查逻辑
+    pass
+```
+
+## 持续改进
+
+### 1. 代码质量指标
+- 测试覆盖率 > 80%
+- 代码复杂度 < 10
+- 重复代码 < 5%
+- 技术债务 < 10%
+
+### 2. 性能指标
+- 响应时间 < 2秒
+- 内存使用 < 100MB
+- CPU使用率 < 50%
+- 错误率 < 1%
+
+### 3. 用户反馈
+- 收集用户反馈
+- 分析使用数据
+- 识别改进点
+- 制定优化计划

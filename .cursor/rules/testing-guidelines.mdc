@@ -1,0 +1,348 @@
+---
+globs: *.py,test_*.py,*_test.py
+description: 测试指南和最佳实践
+---
+
+# 测试指南和最佳实践
+
+## 测试结构
+
+### 测试文件组织
+```
+tests/
+├── test_fetch_book.py      # 主功能测试
+├── test_utils.py           # 工具函数测试
+├── test_integration.py     # 集成测试
+├── fixtures/               # 测试数据
+│   ├── sample_html.html
+│   └── sample_chapters.json
+└── conftest.py            # pytest配置
+```
+
+### 测试命名规范
+- 测试文件：`test_*.py` 或 `*_test.py`
+- 测试函数：`test_功能描述`
+- 测试类：`Test类名`
+
+## 单元测试
+
+### 工具函数测试
+```python
+import pytest
+from utils import extract_book_id_from_url, clean_filename, validate_url
+
+class TestUtils:
+    def test_extract_book_id_from_url(self):
+        """测试从URL提取书籍ID"""
+        # 正常情况
+        assert extract_book_id_from_url("https://www.shidianguji.com/book/HY1523") == "HY1523"
+        assert extract_book_id_from_url("https://www.shidianguji.com/book/HY1523/") == "HY1523"
+        
+        # 边界情况
+        assert extract_book_id_from_url("") is None
+        assert extract_book_id_from_url("invalid_url") is None
+        assert extract_book_id_from_url("https://example.com") is None
+    
+    def test_clean_filename(self):
+        """测试文件名清理"""
+        assert clean_filename("test<file>") == "test_file_"
+        assert clean_filename("a" * 150) == "a" * 100  # 长度限制
+        assert clean_filename("normal_file.txt") == "normal_file.txt"
+    
+    def test_validate_url(self):
+        """测试URL验证"""
+        assert validate_url("https://www.shidianguji.com/book/HY1523") is True
+        assert validate_url("http://example.com") is True
+        assert validate_url("invalid_url") is False
+        assert validate_url("") is False
+```
+
+### 主功能测试
+```python
+import pytest
+from unittest.mock import Mock, patch
+from fetch_book import ShidiangujiFetcher
+
+class TestShidiangujiFetcher:
+    def setup_method(self):
+        """每个测试方法前的设置"""
+        self.fetcher = ShidiangujiFetcher()
+        self.fetcher.book_id = "HY1523"
+    
+    def test_extract_book_id_from_url(self):
+        """测试URL解析"""
+        assert self.fetcher.extract_book_id_from_url("https://www.shidianguji.com/book/HY1523") == "HY1523"
+        assert self.fetcher.extract_book_id_from_url("") is None
+    
+    @patch('requests.Session.get')
+    def test_analyze_book_structure_success(self, mock_get):
+        """测试书籍结构分析成功情况"""
+        # 模拟响应
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'<html><a href="/book/HY1523/chapter/1">章节1</a></html>'
+        mock_get.return_value = mock_response
+        
+        chapters = self.fetcher.analyze_book_structure()
+        assert len(chapters) > 0
+        assert chapters[0]['title'] == "章节1"
+    
+    @patch('requests.Session.get')
+    def test_analyze_book_structure_failure(self, mock_get):
+        """测试书籍结构分析失败情况"""
+        # 模拟网络错误
+        mock_get.side_effect = requests.exceptions.ConnectionError("网络错误")
+        
+        chapters = self.fetcher.analyze_book_structure()
+        assert chapters == []
+    
+    @patch('requests.Session.get')
+    def test_get_chapter_content(self, mock_get):
+        """测试章节内容获取"""
+        # 模拟响应
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = b'<html><article>测试内容</article></html>'
+        mock_get.return_value = mock_response
+        
+        content = self.fetcher.get_chapter_content("http://test.com", "测试章节")
+        assert "测试内容" in content
+```
+
+## 集成测试
+
+### 端到端测试
+```python
+import pytest
+import os
+import tempfile
+from fetch_book import ShidiangujiFetcher
+
+class TestIntegration:
+    def setup_method(self):
+        """设置测试环境"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.fetcher = ShidiangujiFetcher()
+        self.fetcher.output_dir = self.temp_dir
+        self.fetcher.book_id = "HY1523"
+    
+    def teardown_method(self):
+        """清理测试环境"""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    @patch('requests.Session.get')
+    def test_full_workflow(self, mock_get):
+        """测试完整工作流程"""
+        # 模拟书籍结构分析响应
+        def mock_get_side_effect(url, **kwargs):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            
+            if "book/HY1523" in url and "chapter" not in url:
+                # 书籍主页响应
+                mock_response.content = b'''
+                <html>
+                    <a href="/book/HY1523/chapter/1">第一章</a>
+                    <a href="/book/HY1523/chapter/2">第二章</a>
+                </html>
+                '''
+            elif "chapter" in url:
+                # 章节页面响应
+                mock_response.content = b'<html><article>章节内容</article></html>'
+            
+            return mock_response
+        
+        mock_get.side_effect = mock_get_side_effect
+        
+        # 执行完整流程
+        result = self.fetcher.fetch_book("测试书籍")
+        
+        # 验证结果
+        assert result is not None
+        assert os.path.exists(result)
+        
+        # 验证文件内容
+        with open(result, 'r', encoding='utf-8') as f:
+            content = f.read()
+            assert "测试书籍" in content
+            assert "第一章" in content
+            assert "第二章" in content
+```
+
+## 测试数据管理
+
+### 测试夹具
+```python
+# conftest.py
+import pytest
+import json
+from pathlib import Path
+
+@pytest.fixture
+def sample_html():
+    """提供示例HTML内容"""
+    html_file = Path(__file__).parent / "fixtures" / "sample_html.html"
+    return html_file.read_text(encoding='utf-8')
+
+@pytest.fixture
+def sample_chapters():
+    """提供示例章节数据"""
+    json_file = Path(__file__).parent / "fixtures" / "sample_chapters.json"
+    return json.loads(json_file.read_text(encoding='utf-8'))
+
+@pytest.fixture
+def mock_fetcher():
+    """提供模拟的获取器实例"""
+    fetcher = ShidiangujiFetcher()
+    fetcher.book_id = "TEST123"
+    fetcher.output_dir = "/tmp/test_output"
+    return fetcher
+```
+
+### 测试数据文件
+```html
+<!-- fixtures/sample_html.html -->
+<!DOCTYPE html>
+<html>
+<head><title>测试书籍</title></head>
+<body>
+    <article>
+        <h1>第一章 测试章节</h1>
+        <p>这是测试内容。</p>
+    </article>
+</body>
+</html>
+```
+
+```json
+// fixtures/sample_chapters.json
+[
+    {
+        "url": "https://www.shidianguji.com/book/TEST123/chapter/1",
+        "title": "第一章 测试章节"
+    },
+    {
+        "url": "https://www.shidianguji.com/book/TEST123/chapter/2", 
+        "title": "第二章 测试章节"
+    }
+]
+```
+
+## 性能测试
+
+### 基准测试
+```python
+import time
+import pytest
+from fetch_book import ShidiangujiFetcher
+
+class TestPerformance:
+    def test_request_timing(self):
+        """测试请求时间"""
+        fetcher = ShidiangujiFetcher()
+        fetcher.delay = 0.1  # 减少延迟用于测试
+        
+        start_time = time.time()
+        # 执行测试操作
+        end_time = time.time()
+        
+        elapsed = end_time - start_time
+        assert elapsed < 5.0  # 应该在5秒内完成
+    
+    def test_memory_usage(self):
+        """测试内存使用"""
+        import psutil
+        import os
+        
+        process = psutil.Process(os.getpid())
+        initial_memory = process.memory_info().rss
+        
+        # 执行测试操作
+        fetcher = ShidiangujiFetcher()
+        # ... 执行操作
+        
+        final_memory = process.memory_info().rss
+        memory_increase = final_memory - initial_memory
+        
+        # 内存增长应该在合理范围内（例如小于100MB）
+        assert memory_increase < 100 * 1024 * 1024
+```
+
+## 测试配置
+
+### pytest.ini
+```ini
+[tool:pytest]
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+addopts = 
+    -v
+    --tb=short
+    --strict-markers
+    --disable-warnings
+markers =
+    slow: marks tests as slow
+    integration: marks tests as integration tests
+    unit: marks tests as unit tests
+```
+
+### 运行测试
+```bash
+# 运行所有测试
+pytest
+
+# 运行特定测试文件
+pytest tests/test_fetch_book.py
+
+# 运行特定测试方法
+pytest tests/test_fetch_book.py::TestShidiangujiFetcher::test_extract_book_id_from_url
+
+# 运行标记的测试
+pytest -m "not slow"
+
+# 生成覆盖率报告
+pytest --cov=fetch_book --cov-report=html
+```
+
+## 持续集成
+
+### GitHub Actions 配置
+```yaml
+# .github/workflows/test.yml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run tests
+      run: |
+        pytest --cov=fetch_book --cov-report=xml
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
+```

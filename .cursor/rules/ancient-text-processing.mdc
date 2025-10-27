@@ -1,0 +1,332 @@
+---
+globs: *.py,*.md
+description: 古籍文本处理和格式化规范
+---
+
+# 古籍文本处理和格式化
+
+## 文本清理模式
+
+### 古籍特有内容清理
+```python
+def clean_ancient_text(self, content):
+    """清理古籍文本内容"""
+    # 移除网站相关元素
+    content = re.sub(r'识典古籍.*?版权所有', '', content, flags=re.DOTALL)
+    content = re.sub(r'登录后阅读更方便', '', content)
+    content = re.sub(r'书库', '', content)
+    content = re.sub(r'下一篇.*?$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'上一章.*?$', '', content, flags=re.MULTILINE)
+    content = re.sub(r'目录', '', content)
+    
+    # 移除现代标点符号（保留古籍标点）
+    content = re.sub(r'[，。！？；：]', '', content)
+    
+    # 保留古籍标点符号
+    # 如：、，。；：！？《》「」『』（）【】
+    
+    return content
+```
+
+### 章节标题识别
+```python
+def identify_chapter_titles(self, content):
+    """识别古籍章节标题"""
+    title_patterns = [
+        r'^.*卷.*[上下中]$',      # 卷上、卷下、卷中
+        r'^.*卷.*第.*$',          # 卷第一、卷第二
+        r'^.*章.*$',              # 第一章、第二章
+        r'^.*节.*$',              # 第一节、第二节
+        r'^.*篇.*$',              # 第一篇、第二篇
+        r'^.*之.*$',              # 天之道、地之理
+        r'^.*解.*$',              # 发音解、收音解
+        r'^.*经.*$',              # 皇极经世
+        r'^.*论.*$',              # 天论、地论
+        r'^.*[一二三四五六七八九十百千万]+.*$',  # 数字开头的标题
+    ]
+    
+    titles = []
+    for line in content.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+            
+        for pattern in title_patterns:
+            if re.match(pattern, line):
+                titles.append(line)
+                break
+    
+    return titles
+```
+
+## Markdown格式化
+
+### 古籍文档结构
+```markdown
+# 书籍标题
+
+**来源：** 识典古籍 (https://www.shidianguji.com/)
+
+**获取时间：** 2025年01月27日 21:34:56
+
+**获取方式：** 智能分析网站结构
+
+---
+
+## 目录
+
+1. [皇极经世精校版](#皇极经世精校版)
+2. [发音](#发音)
+3. [收音](#收音)
+4. [闭音](#闭音)
+
+---
+
+## 1. 皇极经世精校版
+
+**来源链接：** https://www.shidianguji.com/book/HY1523/chapter/1
+
+---
+
+古籍正文内容...
+
+---
+
+## 2. 发音
+
+**来源链接：** https://www.shidianguji.com/book/HY1523/chapter/2
+
+---
+
+古籍正文内容...
+
+---
+```
+
+### 古籍特殊格式处理
+```python
+def format_ancient_text(self, content):
+    """格式化古籍文本"""
+    lines = content.split('\n')
+    formatted_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 处理古籍特有的换行
+        if self._is_ancient_verse(line):
+            # 诗词格式，保持原有换行
+            formatted_lines.append(line)
+        elif self._is_ancient_paragraph(line):
+            # 段落格式，添加适当间距
+            formatted_lines.append(f"\n{line}\n")
+        else:
+            # 普通文本
+            formatted_lines.append(line)
+    
+    return '\n'.join(formatted_lines)
+
+def _is_ancient_verse(self, line):
+    """判断是否为诗词格式"""
+    # 检查是否包含诗词特征
+    verse_patterns = [
+        r'^.{5,7}$',  # 五言或七言
+        r'^.*[，。]$',  # 以标点结尾
+        r'^.*[平仄]$',  # 包含平仄标记
+    ]
+    
+    for pattern in verse_patterns:
+        if re.match(pattern, line):
+            return True
+    return False
+
+def _is_ancient_paragraph(self, line):
+    """判断是否为段落格式"""
+    # 检查段落特征
+    if len(line) > 20:  # 较长的文本
+        return True
+    if re.search(r'[。！？]$', line):  # 以句号等结尾
+        return True
+    return False
+```
+
+## 内容验证
+
+### 古籍内容质量检查
+```python
+def validate_ancient_content(self, content, title):
+    """验证古籍内容质量"""
+    issues = []
+    
+    # 检查内容长度
+    if len(content.strip()) < 10:
+        issues.append(f"内容过短: {title}")
+    
+    # 检查是否包含古籍关键词
+    ancient_keywords = ['皇极经世', '发音', '收音', '闭音', '卷', '章', '篇']
+    if not any(keyword in content for keyword in ancient_keywords):
+        issues.append(f"内容可能不相关: {title}")
+    
+    # 检查是否包含现代内容
+    modern_keywords = ['登录', '注册', '版权', '网站', '链接']
+    if any(keyword in content for keyword in modern_keywords):
+        issues.append(f"包含现代内容: {title}")
+    
+    # 检查编码问题
+    try:
+        content.encode('utf-8')
+    except UnicodeEncodeError:
+        issues.append(f"编码问题: {title}")
+    
+    return issues
+```
+
+### 重复内容检测
+```python
+def detect_duplicate_content(self, chapters_data):
+    """检测重复内容"""
+    duplicates = []
+    content_hashes = {}
+    
+    for i, chapter in enumerate(chapters_data):
+        content = chapter['content']
+        # 使用内容哈希检测重复
+        content_hash = hash(content.strip())
+        
+        if content_hash in content_hashes:
+            duplicates.append({
+                'index': i,
+                'title': chapter['title'],
+                'duplicate_of': content_hashes[content_hash]['index'],
+                'duplicate_title': content_hashes[content_hash]['title']
+            })
+        else:
+            content_hashes[content_hash] = {
+                'index': i,
+                'title': chapter['title']
+            }
+    
+    return duplicates
+```
+
+## 文件命名规范
+
+### 古籍文件命名
+```python
+def generate_ancient_filename(self, book_title, timestamp=None):
+    """生成古籍文件名"""
+    if timestamp is None:
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+    
+    # 清理书名中的特殊字符
+    clean_title = re.sub(r'[<>:"/\\|?*]', '_', book_title)
+    clean_title = clean_title.replace(' ', '_')
+    
+    # 限制长度
+    if len(clean_title) > 50:
+        clean_title = clean_title[:50]
+    
+    return f"{clean_title}_{timestamp}.md"
+```
+
+### 目录结构
+```
+books/
+├── 皇极经世精校版_20250127_213456.md
+├── 梦林玄解_20250127_214512.md
+└── 其他古籍_20250127_215623.md
+```
+
+## 元数据管理
+
+### 古籍元数据
+```python
+def extract_ancient_metadata(self, content):
+    """提取古籍元数据"""
+    metadata = {
+        'title': '',
+        'author': '',
+        'dynasty': '',
+        'category': '',
+        'total_chapters': 0,
+        'total_characters': 0
+    }
+    
+    # 提取标题（通常在开头）
+    lines = content.split('\n')
+    for line in lines[:10]:  # 只检查前10行
+        line = line.strip()
+        if line and len(line) < 50:  # 标题通常不会太长
+            metadata['title'] = line
+            break
+    
+    # 统计字符数
+    metadata['total_characters'] = len(content)
+    
+    # 统计章节数
+    chapter_count = len(re.findall(r'^## \d+\.', content, re.MULTILINE))
+    metadata['total_chapters'] = chapter_count
+    
+    return metadata
+```
+
+### 保存元数据
+```python
+def save_metadata(self, metadata, filepath):
+    """保存元数据到JSON文件"""
+    metadata_file = filepath.replace('.md', '_metadata.json')
+    
+    try:
+        with open(metadata_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+        print(f"元数据已保存到: {metadata_file}")
+    except Exception as e:
+        print(f"保存元数据失败: {e}")
+```
+
+## 内容统计
+
+### 古籍内容统计
+```python
+def generate_content_statistics(self, chapters_data):
+    """生成内容统计信息"""
+    stats = {
+        'total_chapters': len(chapters_data),
+        'total_characters': 0,
+        'total_words': 0,
+        'average_chapter_length': 0,
+        'longest_chapter': '',
+        'shortest_chapter': '',
+        'chapter_lengths': []
+    }
+    
+    if not chapters_data:
+        return stats
+    
+    for chapter in chapters_data:
+        content = chapter['content']
+        char_count = len(content)
+        word_count = len(content.split())
+        
+        stats['total_characters'] += char_count
+        stats['total_words'] += word_count
+        stats['chapter_lengths'].append({
+            'title': chapter['title'],
+            'characters': char_count,
+            'words': word_count
+        })
+    
+    # 计算平均值
+    stats['average_chapter_length'] = stats['total_characters'] // len(chapters_data)
+    
+    # 找出最长和最短章节
+    if stats['chapter_lengths']:
+        longest = max(stats['chapter_lengths'], key=lambda x: x['characters'])
+        shortest = min(stats['chapter_lengths'], key=lambda x: x['characters'])
+        stats['longest_chapter'] = longest['title']
+        stats['shortest_chapter'] = shortest['title']
+    
+    return stats
+```
